@@ -49,13 +49,6 @@ class auth_plugin_onlineconfirm extends auth_plugin_base {
         self::__construct();
     }
 
-    public function pre_user_login_hook(&$user) {
-        global $CFG;
-        if (!empty($user->suspended)) {
-            notice(get_string('suspendnotice', 'auth_onlineconfirm'), $CFG->wwwroot .'/auth/onlineconfirm/unlock_account.php?u='.$user->id);
-        }
-    }
-
     /**
      * Returns true if the username and password work and false if they are
      * wrong or don't exist.
@@ -94,14 +87,6 @@ class auth_plugin_onlineconfirm extends auth_plugin_base {
         return true;
     }
 
-/* Override signup form charbusch by copying login/signup_form.php to this folder.
-    function signup_form() {
-        global $CFG;
-
-        require_once($CFG->dirroot.'/auth/'.$this->authtype.'/signup_form.php');
-        return new login_signup_form(null, null, 'post', '', array('autocomplete'=>'on'));
-    }
-*/
     /**
      * Sign up a new user ready for confirmation.
      * Password is passed in plaintext.
@@ -128,7 +113,7 @@ class auth_plugin_onlineconfirm extends auth_plugin_base {
      * @since Moodle 3.2
      */
     public function user_signup_with_confirmation($user, $notify=true, $confirmationurl = null) {
-        global $CFG, $DB;
+        global $CFG, $DB, $SESSION;
         require_once($CFG->dirroot.'/user/profile/lib.php');
         require_once($CFG->dirroot.'/user/lib.php');
 
@@ -144,6 +129,11 @@ class auth_plugin_onlineconfirm extends auth_plugin_base {
 
         // Save any custom profile field information.
         profile_save_data($user);
+
+        // Save wantsurl against user's profile, so we can return them there upon confirmation.
+        if (!empty($SESSION->wantsurl)) {
+            set_user_preference('auth_onlineconfirm_wantsurl', $SESSION->wantsurl, $user);
+        }
 
         // Trigger event.
         \core\event\user_created::create_from_userid($user->id)->trigger();
@@ -195,6 +185,9 @@ class auth_plugin_onlineconfirm extends auth_plugin_base {
             return AUTH_CONFIRM_ERROR;
         }
     }
+
+
+
 
     function prevent_local_passwords() {
         return false;
@@ -257,13 +250,14 @@ class auth_plugin_onlineconfirm extends auth_plugin_base {
 
 	// Custom functions.
     /**
-     * Returns the user to site root logged in
+     * Returns the user to site root logged in or wantsurl
      *
      */
     function onlineconfirm_redirect($user) {
-        global $CFG;
+        global $CFG, $SESSION;
 
-    	redirect("$CFG->wwwroot/");
+        redirect($SESSION->wantsurl);
+        unset($SESSION->wantsurl);
     }
 
     /**
